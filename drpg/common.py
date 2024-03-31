@@ -66,7 +66,7 @@ def write_quad_mesh(path, v, f):
     with open(path, "w") as file:
         for i in range(len(v)):
             file.write(f"v {v[i,0]} {v[i,1]} {v[i,2]}\n")
-            
+
         for i in range(len(f)):
             file.write(f"f {f[i,0]+1} {f[i,1]+1} {f[i,2]+1} {f[i,3]+1}\n")
 
@@ -81,6 +81,7 @@ def save_polyline(path, points):
     np.savetxt(path, points)
 
 def load_environment_map(path, device):
+    imageio.plugins.freeimage.download()
     path = Path(path)
     format, scale = ('HDR-FI', 1.0) if path.suffix == '.hdr' else (None, 255.0)
     envmap        = torch.tensor(imageio.imread(path, format=format)/scale, dtype=torch.float32, device=device)
@@ -114,7 +115,7 @@ def load_bpt(filepath: Path, transpose: bool=False, verbose: bool=False, device:
     """
 
     patches = []
-    with open(filepath, 'r') as f:    
+    with open(filepath, 'r') as f:
         num_patches = int(f.readline())
         if verbose:
             print(f"{num_patches=}")
@@ -130,12 +131,12 @@ def load_bpt(filepath: Path, transpose: bool=False, verbose: bool=False, device:
                 P += [ [float(v) for v in  f.readline().split(' ')] ]
 
             patches += [ P ]
-    
+
     patches = torch.tensor(patches, dtype=torch.float32, device=device).reshape(num_patches, n+1, m+1, -1)
 
     if transpose:
             patches.transpose_(1, 2)
-        
+
     return patches
 
 def save_bpt(filepath: Path, patches: torch.Tensor, transpose: bool=False):
@@ -162,10 +163,10 @@ def save_bpt(filepath: Path, patches: torch.Tensor, transpose: bool=False):
 
     with open(filepath, 'w') as f:
         f.write(f"{num_patches}\n")
-        
+
         for patch_id in range(num_patches):
             # Store the degree
-            f.write(f"{n} {m}\n") 
+            f.write(f"{n} {m}\n")
 
             for i in range(n+1):
                 for j in range(m+1):
@@ -175,11 +176,11 @@ def save_bpt(filepath: Path, patches: torch.Tensor, transpose: bool=False):
 def load_json(path):
     with open(path, 'r') as file:
         return json.load(file)
-    
+
 def save_json(path, data):
     with open(path, 'w', encoding='utf-8') as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
-    
+
 def convert_quad_mesh_to_patches(vertices: torch.Tensor, faces: torch.Tensor, n: int, m: int) -> torch.Tensor:
     u = 1-torch.linspace(0, 1, m, device=vertices.device)
     v = 1-torch.linspace(0, 1, n, device=vertices.device)
@@ -190,7 +191,7 @@ def convert_quad_mesh_to_patches(vertices: torch.Tensor, faces: torch.Tensor, n:
     p3 = p2.flip(0)
 
     weights = torch.stack([p0, p1, p2, p3], dim=0)
-    
+
     P = torch.matmul(vertices[faces.to(dtype=torch.long)].transpose(1, 2).reshape(-1, 4), weights.reshape(4, -1)).reshape(-1, 3, n, m).permute(0, 2, 3, 1)
 
     return P

@@ -1,3 +1,8 @@
 *.pyc
 
 /out
+
+build
+build/*
+drpg.egg-info
+drpg.egg-info/*

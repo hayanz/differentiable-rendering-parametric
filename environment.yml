@@ -8,8 +8,9 @@ dependencies:
   - python=3.9
   - pip
   - pytorch=2.1.0
-  - pytorch-cuda=12.1
-  - cudatoolkit
+  - pytorch-cuda=11.8
+  - cudatoolkit=11.8
+  - cudnn
   - pip:
     - imageio==2.23.0
     - imageio-ffmpeg

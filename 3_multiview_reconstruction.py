@@ -43,7 +43,7 @@ def load_config(path: Path) -> dict:
         config_base = load_config(path.parent / include_path)
         config_ = config_base.copy()
         config_.update(config)
-        
+
         config = config_
         config.pop("include")
 
@@ -63,7 +63,8 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
 
     # Basic setup
     device = torch.device('cuda:0')
-    context = dr.RasterizeGLContext(device=device)
+    # context = dr.RasterizeGLContext(device=device)
+    context = dr.RasterizeCudaContext(device=device)
 
     # Setup the general scene
     resolution = (256, 256)
@@ -117,7 +118,7 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
             imageio.imwrite(output_dir / f"reference_color_{i}.png", to_display_image(img_ref, grayscale_to_rgb=True, to_uint8=True))
             imageio.imwrite(output_dir / f"reference_mask_{i}.png",  to_display_image(mask_ref, grayscale_to_rgb=True, to_uint8=True))
 
-    # Define the initial surface 
+    # Define the initial surface
     if initial_surface == InitialSurface.Cube:
         print(f"n={control_grid_resolution}")
         patches = bezier_cube(n=control_grid_resolution, device=device)
@@ -161,20 +162,20 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
             v_opt, f_opt, tu_opt, tv_opt = tessellator.tessellate(patches_opt, return_per_patch=True, adaptive_threshold=adaptive_tess_threshold)
             n_opt                        = get_normals_from_tangents(tu_opt, tv_opt)
             return v_opt, f_opt, n_opt
-        
+
         return optimizer, patches_opt, compute_mesh, num_setups + 1
 
     optimizer, patches_opt, compute_mesh, num_setups = setup_optimizer(patches, num_setups)
 
     tangent_map  = build_tangent_map(patches_opt)
     patch_colors = torch.rand((patches_opt.F.shape[0], 3)) + 0.4
-    
+
     profiler = Profiler()
     profiler.start()
 
     imgs_initial = None
     progress_bar = tqdm(range(num_iterations))
-    frame_index  = 0 
+    frame_index  = 0
     for iteration in progress_bar:
         if iteration in subdivision_schedule:
             with torch.no_grad():
@@ -184,7 +185,7 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
                 optimizer, patches_opt, compute_mesh, num_setups = setup_optimizer(patches_subdiv, num_setups)
                 tangent_map                                      = build_tangent_map(patches_opt)
                 patch_colors                                     = torch.rand((patches_opt.F.shape[0], 3)) + 0.4
-        
+
         if iteration in elevation_schedule:
             with torch.no_grad():
                 patches_elevated = ParametricPatches(n=patches_opt.n+1, device=device)
@@ -198,7 +199,7 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
         v_opt, f_opt, n_opt = compute_mesh()
         mesh_opt = Mesh(v_opt.reshape(-1, 3), f_opt.reshape(-1, 3).to(dtype=torch.int32), n_opt.reshape(-1, 3))
         imgs_opt = [render_image([mesh_opt], i) for i in range(len(cameras))]
-        
+
         if iteration == 0:
             imgs_initial = [img.detach().clone() for (img, mask) in imgs_opt]
 
@@ -207,7 +208,7 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
             loss += torch.mean((mask_ref - mask_opt).abs())
             loss += image_loss_weight*torch.mean((img_ref - img_opt).abs())
 
-        if g1_loss_weight is not None and g1_loss_weight != 0.0: 
+        if g1_loss_weight is not None and g1_loss_weight != 0.0:
             loss += g1_loss_weight*g1_loss(patches_opt, tangent_map=tangent_map)
 
         progress_bar.set_postfix({'loss': f"{float(loss):0.5f}"})
@@ -228,7 +229,7 @@ def run_multiview_objects(output_dir, input_path: Path, transform: Optional[List
             with torch.no_grad():
                 for i in range(len(v_opt)):
                     save_mesh(frame_output_dir / f"surface_{i}.obj", v_opt[i].reshape(-1, 3).cpu().numpy(), f_opt[0].cpu().numpy(), vertex_normals=n_opt[i].reshape(-1, 3).cpu().numpy())
-                
+
                 for i in range(len(patches_opt.F)):
                     P = patches_opt.V[patches_opt.F[i]]
                     F = generate_grid_faces(P.shape[0], P.shape[1], quads=True)
